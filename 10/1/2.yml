@@ -2,7 +2,9 @@ name: solder:bit gamepad
 org:
   name: Lancaster University
   url: https://www.lancaster.ac.uk
-group: Devices Lab
+group:
+  name: Devices Lab
+  url: https://www.devices-lab.org/
 description:
   - Learn to solder surface mount components whilst creating a versatile accessory for the BBC micro:bit.
   - Ideal for controlling any interactive device, installation or robot.
