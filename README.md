@@ -28,13 +28,11 @@ A reviewer will merge, request changes, or ask questions to meet identifier requ
 
 ## Example artifact (minimal)
 ```yaml
-id: "10.100/1234"
 title: "Example Device Board v1"
 url: "https://example.com/docs/example-device"
-creators:
-  - name: "Example Org"
-date: "2024-01-01"
 ```
+
+For other examples, browse the `10/1/` and `10/2/` organisation paths for our own devices.
 
 Note that the only key that the router cares about is `url`, and any other data is currently used as free-form metadata. This may change however, and we are open to suggestions for which additional fields we should formalise in the standard.
 
