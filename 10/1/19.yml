@@ -1,0 +1,12 @@
+name: Digital health PCB with pulse oximeter
+org:
+  name: Lancaster University
+  url: https://www.lancaster.ac.uk
+group:
+  name: Devices Lab
+  url: https://www.devices-lab.org/
+description:
+  - Design generated using MakeDevice
+  - PCB for use in SCC.342 Digital Health module
+  - OLED display, gyroscope, custom BBC micro:bit connector, and a pulse oximeter
+url: https://www.devices-lab.org/
