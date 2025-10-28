@@ -2,7 +2,6 @@
 
 An open index of stable, consistent, and shareable identifiers for hardware artifacts.
 Each artifact is represented by a single YAML (.yml) file in this repository.
-The index aims to align with DOI-style identifiers from ISO 26324 where practical, but is not strictly bound to that standard.
 
 This repository is the canonical source for hwidx.org identifiers and is managed via GitHub pull requests.
 
@@ -32,13 +31,14 @@ title: "Example Device Board v1"
 url: "https://example.com/docs/example-device"
 ```
 
-For other examples, browse the `10/1/` and `10/2/` organisation paths for our own devices.
+For other examples, browse the `1/` and `2/` organisation paths for our own devices.
 
 Note that the only key that the router cares about is `url`, and any other data is currently used as free-form metadata. This may change however, and we are open to suggestions for which additional fields we should formalise in the standard.
 
 ## How to display an hwidx identifier on a device
 
 Recommended: a QR code with a solid border and a short-form URL (no scheme) in the top or bottom border. This supports both QR scanning and manual entry.
+Various logomarks and formats are automatically generated for each artifact, and can be found on the metapage for each. See https://hwidx.org/ for examples, or add `m.` before the URL of any hwidx URL to see the metapage for this artifact (ex. https://m.hwidx.org/2/1.1.0/ )
 
 ## How to use an hwidx identifier
 
@@ -55,4 +55,4 @@ Recommended: a QR code with a solid border and a short-form URL (no scheme) in t
 
 - Project website: https://hwidx.org/
 - Project repository: https://github.com/ResearchCulture/hwidx  
-- DOI / ISO 26324: https://www.doi.org/
+- DOI: https://www.doi.org/
