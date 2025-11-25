@@ -1,5 +1,10 @@
 # The Hardware Index (hwidx.org)
 
+<p align="center">
+  <p align="center"><img src="https://m.hwidx.org/assets/img/wellcome-logo-white.png" height="120px" alt="The Wellcome Trust Logo"></p>
+  <p align="center"><a href="https://wellcome.org/">Funded by Wellcome</a></p>
+</p>
+
 An open index of stable, consistent, and shareable identifiers for hardware artifacts.
 Each artifact is represented by a single YAML (.yml) file in this repository.
 
