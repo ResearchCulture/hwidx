@@ -1,10 +1,4 @@
 name: clip:bit
-org:
-  name: Lancaster University
-  url: https://www.lancaster.ac.uk
-group:
-  name: Devices Lab
-  url: https://www.devices-lab.org/
 description: The clip:bit is a micro:bit powered, clipboard format expansion board for primary education.
 url: https://www.devices-lab.org/clipbit/
 status: pending

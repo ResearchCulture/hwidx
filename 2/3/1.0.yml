@@ -1,7 +1,4 @@
 name: Jacdac Click
-org:
-  name: Lancaster University
-  url: https://www.lancaster.ac.uk
 description: A Mikroe "mikroBUS" expansion board to allow hosts without Jacdac to connect to Jacdac client devices
 url: https://www.device4science.com/devices/jacdac-click
 status: pending

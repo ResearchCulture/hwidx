@@ -1,7 +1,4 @@
 name: rib:bit
-org:
-  name: Lancaster University
-  url: https://www.lancaster.ac.uk
 description: rib:bit is a micro:bit powered, wearable research platform.
 url: https://www.device4science.com/devices/rib-bit
 status: pending
