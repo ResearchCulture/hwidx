@@ -1,0 +1,4 @@
+name: Rib:bit OLED Expansion
+description: A pass-through i2c connected 3v3 OLED display expansion for the Rib:bit (and compatible mikroBUS boards)
+url: https://johnvidler.co.uk/hardware/ribbit-oled-expansion
+status: pending
