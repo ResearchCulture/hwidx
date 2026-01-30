@@ -1,0 +1,7 @@
+name: Actitivty tracker
+description:
+  - Design generated using MakeDevice
+  - PCB for use in SCC.342 Digital Health module
+  - OLED display, gyroscope, custom BBC micro:bit connector
+url: https://www.devices-lab.org/
+status: active
