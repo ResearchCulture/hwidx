@@ -1,0 +1,7 @@
+name: solder:bit Gamepad
+description:
+  - Learn to solder surface mount components whilst creating a versatile accessory for the BBC micro:bit.
+  - Ideal for controlling any interactive device, installation or robot.
+url: https://www.devices-lab.org/solderbit/gamepad/
+github: https://github.com/devices-lab/solderbit-gamepad
+status: pending
