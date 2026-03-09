@@ -1,0 +1,219 @@
+name: PR URL and file-type checks
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  validate-pr:
+    runs-on: ubuntu-latest
+    env:
+      BASE_SHA: ${{ github.event.pull_request.base.sha }}
+      HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Check file types for added/changed files (ignore .md)
+        id: file_check
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          FILE_REPORT="$RUNNER_TEMP/file_check.md"
+          : > "$FILE_REPORT"
+
+          mapfile -t changed_files < <(
+            git diff --name-status "$BASE_SHA" "$HEAD_SHA" \
+            | awk '$1=="A" || $1=="M"{print $2} $1 ~ /^R/{print $3}'
+          )
+
+          invalid_files=()
+          for f in "${changed_files[@]:-}"; do
+            # Ignore markdown files
+            if [[ "$f" =~ \.md$ ]]; then
+              continue
+            fi
+
+            # Only allow .yml / .yaml for added/changed files
+            if [[ ! "$f" =~ \.ya?ml$ ]]; then
+              invalid_files+=("$f")
+            fi
+          done
+
+          if ((${#invalid_files[@]} > 0)); then
+            {
+              echo "## ❌ File type check failed"
+              echo
+              echo "Non-YAML files were added/changed. Only \`.yml\` or \`.yaml\` files are allowed for added/changed files (markdown \`.md\` is ignored)."
+              echo
+              echo "### Invalid added/changed files"
+              for f in "${invalid_files[@]}"; do
+                file_url="${{ github.server_url }}/${{ github.repository }}/blob/$HEAD_SHA/$f"
+                echo "- [$f]($file_url)"
+              done
+            } | tee -a "$GITHUB_STEP_SUMMARY" > "$FILE_REPORT"
+            echo "result=fail" >> "$GITHUB_OUTPUT"
+            echo "report=$FILE_REPORT" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          {
+            echo "## ✅ File type check passed"
+            echo
+            echo "All added/changed files are YAML (or ignored markdown)."
+          } | tee -a "$GITHUB_STEP_SUMMARY" > "$FILE_REPORT"
+          echo "result=pass" >> "$GITHUB_OUTPUT"
+          echo "report=$FILE_REPORT" >> "$GITHUB_OUTPUT"
+
+      - name: Check URLs in added/changed YAML files resolve to 200 after redirects
+        id: url_check
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          URL_REPORT="$RUNNER_TEMP/url_check.md"
+          : > "$URL_REPORT"
+
+          mapfile -t yaml_files < <(git diff --name-only --diff-filter=AMR "$BASE_SHA" "$HEAD_SHA" -- '*.yml' '*.yaml')
+
+          total_urls=0
+          failed=0
+          report_rows=""
+
+          for file in "${yaml_files[@]:-}"; do
+            file_url="${{ github.server_url }}/${{ github.repository }}/blob/$HEAD_SHA/$file"
+
+            # Extract URLs from the full file content at PR head for added/changed YAML files
+            mapfile -t urls < <(
+              git show "$HEAD_SHA:$file" \
+              | grep -Eo 'https?://[^[:space:]]+' \
+              | sed -E "s/[\"'<>),.;]+$//" \
+              | sort -u || true
+            )
+
+            for url in "${urls[@]:-}"; do
+              total_urls=$((total_urls + 1))
+              code="$(curl -s -L -o /dev/null -w "%{http_code}" "$url" || echo "000")"
+
+              if [[ "$code" != "200" ]]; then
+                failed=$((failed + 1))
+                report_rows="${report_rows}| [$file]($file_url) | $url | $code |\n"
+              fi
+            done
+          done
+
+          if ((total_urls == 0)); then
+            {
+              echo "## ✅ URL check skipped"
+              echo
+              echo "No URLs were found in added/changed YAML files."
+            } | tee -a "$GITHUB_STEP_SUMMARY" > "$URL_REPORT"
+            echo "result=pass" >> "$GITHUB_OUTPUT"
+            echo "report=$URL_REPORT" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          if ((failed > 0)); then
+            {
+              echo "## ❌ URL check failed"
+              echo
+              echo "The following URLs from added/changed YAML files did not return \`200\` after redirects:"
+              echo
+              echo "| File | URL | Final HTTP code |"
+              echo "|---|---|---|"
+              printf "%b" "$report_rows"
+            } | tee -a "$GITHUB_STEP_SUMMARY" > "$URL_REPORT"
+            echo "result=fail" >> "$GITHUB_OUTPUT"
+            echo "report=$URL_REPORT" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          {
+            echo "## ✅ URL check passed"
+            echo
+            echo "Checked **$total_urls** URL(s) from added/changed YAML files. All returned **200** after redirects."
+          } | tee -a "$GITHUB_STEP_SUMMARY" > "$URL_REPORT"
+          echo "result=pass" >> "$GITHUB_OUTPUT"
+          echo "report=$URL_REPORT" >> "$GITHUB_OUTPUT"
+
+      - name: Build PR markdown report
+        if: always()
+        id: build_report
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          REPORT_FILE="$RUNNER_TEMP/pr_linkbot_report.md"
+          {
+            echo "<!-- linkbot-report -->"
+            echo "## LinkBot PR checks"
+            echo
+            echo "- Workflow run: [View run](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})"
+            echo
+            cat "${{ steps.file_check.outputs.report }}"
+            echo
+            cat "${{ steps.url_check.outputs.report }}"
+          } > "$REPORT_FILE"
+
+          echo "report=$REPORT_FILE" >> "$GITHUB_OUTPUT"
+
+      - name: Comment report on PR
+        if: always()
+        uses: actions/github-script@v7
+        env:
+          REPORT_PATH: ${{ steps.build_report.outputs.report }}
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const fs = require('fs');
+            const marker = '<!-- linkbot-report -->';
+            const body = fs.readFileSync(process.env.REPORT_PATH, 'utf8');
+
+            const { owner, repo } = context.repo;
+            const issue_number = context.payload.pull_request.number;
+
+            const comments = await github.paginate(github.rest.issues.listComments, {
+              owner,
+              repo,
+              issue_number,
+              per_page: 100,
+            });
+
+            const existing = comments.find(c => c.user?.type === 'Bot' && c.body?.includes(marker));
+
+            if (existing) {
+              await github.rest.issues.updateComment({
+                owner,
+                repo,
+                comment_id: existing.id,
+                body,
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner,
+                repo,
+                issue_number,
+                body,
+              });
+            }
+
+      - name: Fail workflow when checks fail
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          file_result="${{ steps.file_check.outputs.result }}"
+          url_result="${{ steps.url_check.outputs.result }}"
+
+          if [[ "$file_result" == "fail" || "$url_result" == "fail" ]]; then
+            exit 1
+          fi
