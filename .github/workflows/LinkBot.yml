@@ -37,6 +37,11 @@ jobs:
 
           invalid_files=()
           for f in "${changed_files[@]:-}"; do
+            # Ignore dotfiles and files inside dot-directories (e.g. .github/...)
+            if [[ "$f" =~ (^|/)\.[^/]+(/|$) ]]; then
+              continue
+            fi
+
             # Ignore markdown files
             if [[ "$f" =~ \.md$ ]]; then
               continue
@@ -68,7 +73,7 @@ jobs:
           {
             echo "## ✅ File type check passed"
             echo
-            echo "All added/changed files are YAML (or ignored markdown)."
+            echo "All added/changed files are YAML (dotfiles/directories and markdown are ignored)."
           } | tee -a "$GITHUB_STEP_SUMMARY" > "$FILE_REPORT"
           echo "result=pass" >> "$GITHUB_OUTPUT"
           echo "report=$FILE_REPORT" >> "$GITHUB_OUTPUT"
@@ -89,6 +94,11 @@ jobs:
           report_rows=""
 
           for file in "${yaml_files[@]:-}"; do
+            # Ignore dotfiles and files inside dot-directories (e.g. .github/...)
+            if [[ "$file" =~ (^|/)\.[^/]+(/|$) ]]; then
+              continue
+            fi
+
             file_url="${{ github.server_url }}/${{ github.repository }}/blob/$HEAD_SHA/$file"
 
             # Extract URLs from the full file content at PR head for added/changed YAML files
