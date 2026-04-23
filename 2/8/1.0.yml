@@ -1,0 +1,4 @@
+name: Pogo ISP Programmer
+description: A simple 6-pin ISP pogo-pin adapter for programming AVR-based devices without needing an on-board 2x3 header
+url: https://johnvidler.co.uk/
+status: pending
