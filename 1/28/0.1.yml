@@ -1,0 +1,4 @@
+name: SmartPanelizer interface board
+description:
+  - Interface board for connecting to and testing PCBs panelized with SmartPanelizer
+status: pending
