@@ -1,0 +1,7 @@
+name: solder:bit Gamepad
+description:
+  - The solder:bit Gamepad is a kit for learning to solder with surface-mount (SMT) components.
+  - When assembled, the device functions as a gamepad that connects to a BBC micro:bit.
+url: https://github.com/devices-lab/solderbit-gamepad
+github: https://github.com/devices-lab/solderbit-gamepad
+status: active
