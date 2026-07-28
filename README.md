@@ -10,6 +10,10 @@ Each artifact is represented by a single YAML (.yml) file in this repository.
 
 This repository is the canonical source for hwidx.org identifiers and is managed via GitHub pull requests.
 
+<p align="center">
+  <a href="https://m.hwidx.org/make-a-qr-code/">Generate a QR/Link here!</a>
+</p>
+
 ## Features
 
 - Single — One-to-one mapping between an artifact and its documentation  
@@ -43,7 +47,9 @@ Note that the only key that the router cares about is `url`, and any other data 
 ## How to display an hwidx identifier on a device
 
 Recommended: a QR code with a solid border and a short-form URL (no scheme) in the top or bottom border. This supports both QR scanning and manual entry.
-Various logomarks and formats are automatically generated for each artifact, and can be found on the metapage for each. See https://hwidx.org/ for examples, or add `m.` before the URL of any hwidx URL to see the metapage for this artifact (ex. https://m.hwidx.org/2/1.1.0/ )
+Various logomarks and formats are automatically generated for each artifact, and can be found on the metapage for each. See https://hwidx.org/ for examples, or add `m.` before the URL of any hwidx URL to see the metapage for this artifact (ex. https://m.hwidx.org/2/1/1.0/ )
+
+<a href="https://m.hwidx.org/make-a-qr-code/">Use our QR/Link generator here for some ready-to-go marks.</a>
 
 ## How to use an hwidx identifier
 
