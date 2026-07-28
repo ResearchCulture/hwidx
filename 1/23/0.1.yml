@@ -1,4 +1,6 @@
 name: solder:bit Segment
 description:
-  - Work in progress
-status: pending
+  - Learn-to-solder kit using a 7-segment display (and an I2C port expander)
+status: active
+url: https://github.com/devices-lab/solderbit-segment
+github: https://github.com/devices-lab/solderbit-segment
