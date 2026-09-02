@@ -1,0 +1,4 @@
+name: Jacdac Click + ID
+description: A Mikroe "mikroBUS" expansion board to allow hosts without Jacdac to connect to Jacdac client devices. Includes a Click ID compatible 1-wire chip to facilitate auto-detection.
+url: https://www.device4science.com/devices/jacdac-click
+status: pending
