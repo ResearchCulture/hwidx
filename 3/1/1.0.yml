@@ -1,0 +1,4 @@
+name: "HaptiBit 1.0"
+description: A simple passthrough addon for the Micro:bit, which connects P8 to a vibration motor to support basic haptic applications
+url: https://tuxie.tech/
+status: pending
