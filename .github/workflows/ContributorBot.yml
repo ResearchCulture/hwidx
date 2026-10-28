@@ -1,0 +1,121 @@
+name: PR contributor history check
+
+# pull_request_target runs this workflow (and the script it calls) as they exist
+# on the base branch, so a PR cannot alter the check that reports on it, and the
+# token can comment on PRs from forks. This is only safe because nothing from the
+# PR is ever executed: its commits are fetched and read as git data.
+# Do NOT check out the PR head into the workspace or run scripts from it.
+on:
+  pull_request_target:
+    types: [opened, synchronize, reopened, ready_for_review]
+
+permissions: {}
+
+env:
+  # Applied while the report has items worth a closer look; removed otherwise.
+  REVIEW_LABEL: contributor-check
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    env:
+      PR_NUMBER: ${{ github.event.pull_request.number }}
+      BASE_SHA: ${{ github.event.pull_request.base.sha }}
+      HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+      REPO_URL: ${{ github.server_url }}/${{ github.repository }}
+    outputs:
+      flag: ${{ steps.check.outputs.flag }}
+      report: ${{ steps.check.outputs.report }}
+
+    steps:
+      - name: Checkout base branch
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.base.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Fetch PR commits (read as data only)
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch --no-tags origin "+refs/pull/${PR_NUMBER}/head:refs/remotes/pr/head"
+          git cat-file -e "${HEAD_SHA}^{commit}"
+
+      - name: Compare commit authors with tree history
+        id: check
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          REPORT="$RUNNER_TEMP/contributor_check.md"
+          python3 .github/scripts/contributor_check.py "$BASE_SHA" "$HEAD_SHA" "$REPORT"
+          cat "$REPORT" >> "$GITHUB_STEP_SUMMARY"
+
+          delim="EOF_$(openssl rand -hex 16)"
+          {
+            echo "report<<$delim"
+            cat "$REPORT"
+            echo
+            echo "- Workflow run: [View run](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})"
+            echo "$delim"
+          } >> "$GITHUB_OUTPUT"
+
+  # Separate job so the write token is never present while PR content is handled.
+  comment:
+    needs: check
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
+      issues: write
+    steps:
+      - name: Comment report on PR
+        uses: actions/github-script@v7
+        env:
+          REPORT: ${{ needs.check.outputs.report }}
+          FLAG: ${{ needs.check.outputs.flag }}
+        with:
+          script: |
+            const marker = '<!-- contributorbot-report -->';
+            const body = process.env.REPORT;
+            const label = process.env.REVIEW_LABEL;
+
+            const { owner, repo } = context.repo;
+            const issue_number = context.payload.pull_request.number;
+
+            const comments = await github.paginate(github.rest.issues.listComments, {
+              owner,
+              repo,
+              issue_number,
+              per_page: 100,
+            });
+
+            const existing = comments.find(c => c.user?.type === 'Bot' && c.body?.includes(marker));
+
+            if (existing) {
+              await github.rest.issues.updateComment({
+                owner,
+                repo,
+                comment_id: existing.id,
+                body,
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner,
+                repo,
+                issue_number,
+                body,
+              });
+            }
+
+            try {
+              if (process.env.FLAG === 'true') {
+                await github.rest.issues.addLabels({ owner, repo, issue_number, labels: [label] });
+              } else {
+                await github.rest.issues.removeLabel({ owner, repo, issue_number, name: label });
+              }
+            } catch (err) {
+              if (err.status !== 404) core.warning(`Could not update label: ${err.message}`);
+            }
