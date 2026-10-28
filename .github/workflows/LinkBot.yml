@@ -1,191 +1,87 @@
 name: PR URL and file-type checks
 
+# pull_request_target runs this workflow (and the script it calls) as they exist
+# on the base branch, with a token that can comment on PRs from forks. This is
+# only safe because nothing from the PR is ever executed: its commits are
+# fetched and read as git data.
+# Do NOT check out the PR head into the workspace or run scripts from it.
 on:
-  pull_request:
+  pull_request_target:
     types: [opened, synchronize, reopened, ready_for_review]
 
-permissions:
-  contents: read
-  pull-requests: write
+permissions: {}
 
 jobs:
   validate-pr:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     env:
+      PR_NUMBER: ${{ github.event.pull_request.number }}
       BASE_SHA: ${{ github.event.pull_request.base.sha }}
       HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+      REPO_URL: ${{ github.server_url }}/${{ github.repository }}
+      RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+    outputs:
+      result: ${{ steps.check.outputs.result }}
+      report: ${{ steps.check.outputs.report }}
 
     steps:
-      - name: Checkout
+      - name: Checkout base branch
         uses: actions/checkout@v4
         with:
+          ref: ${{ github.event.pull_request.base.sha }}
           fetch-depth: 0
+          persist-credentials: false
 
-      - name: Check file types for added/changed files (ignore .md)
-        id: file_check
+      - name: Fetch PR commits (read as data only)
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch --no-tags origin "+refs/pull/${PR_NUMBER}/head:refs/remotes/pr/head"
+          git cat-file -e "${HEAD_SHA}^{commit}"
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: python -m pip install --disable-pip-version-check pyyaml==6.0.2
+
+      - name: Check file types, YAML and URLs
+        id: check
         shell: bash
         run: |
           set -euo pipefail
 
-          FILE_REPORT="$RUNNER_TEMP/file_check.md"
-          : > "$FILE_REPORT"
+          REPORT="$RUNNER_TEMP/link_check.md"
+          python .github/scripts/link_check.py "$BASE_SHA" "$HEAD_SHA" "$REPORT"
+          cat "$REPORT" >> "$GITHUB_STEP_SUMMARY"
 
-          mapfile -t changed_files < <(
-            git diff --name-status "$BASE_SHA" "$HEAD_SHA" \
-            | awk '$1=="A" || $1=="M"{print $2} $1 ~ /^R/{print $3}'
-          )
-
-          invalid_files=()
-          for f in "${changed_files[@]:-}"; do
-            # Ignore dotfiles and files inside dot-directories (e.g. .github/...)
-            if [[ "$f" =~ (^|/)\.[^/]+(/|$) ]]; then
-              continue
-            fi
-
-            # Ignore markdown files
-            if [[ "$f" =~ \.md$ ]]; then
-              continue
-            fi
-
-            # Only allow .yml / .yaml for added/changed files
-            if [[ ! "$f" =~ \.ya?ml$ ]]; then
-              invalid_files+=("$f")
-            fi
-          done
-
-          if ((${#invalid_files[@]} > 0)); then
-            {
-              echo "## ❌ File type check failed"
-              echo
-              echo "Non-YAML files were added/changed. Only \`.yml\` or \`.yaml\` files are allowed for added/changed files (markdown \`.md\` is ignored)."
-              echo
-              echo "### Invalid added/changed files"
-              for f in "${invalid_files[@]}"; do
-                file_url="${{ github.server_url }}/${{ github.repository }}/blob/$HEAD_SHA/$f"
-                echo "- [$f]($file_url)"
-              done
-            } | tee -a "$GITHUB_STEP_SUMMARY" > "$FILE_REPORT"
-            echo "result=fail" >> "$GITHUB_OUTPUT"
-            echo "report=$FILE_REPORT" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-
+          delim="EOF_$(openssl rand -hex 16)"
           {
-            echo "## ✅ File type check passed"
-            echo
-            echo "All added/changed files are YAML (dotfiles/directories and markdown are ignored)."
-          } | tee -a "$GITHUB_STEP_SUMMARY" > "$FILE_REPORT"
-          echo "result=pass" >> "$GITHUB_OUTPUT"
-          echo "report=$FILE_REPORT" >> "$GITHUB_OUTPUT"
+            echo "report<<$delim"
+            cat "$REPORT"
+            echo "$delim"
+          } >> "$GITHUB_OUTPUT"
 
-      - name: Check URLs in added/changed YAML files resolve to 200 after redirects
-        id: url_check
-        shell: bash
-        run: |
-          set -euo pipefail
-
-          URL_REPORT="$RUNNER_TEMP/url_check.md"
-          : > "$URL_REPORT"
-
-          mapfile -t yaml_files < <(git diff --name-only --diff-filter=AMR "$BASE_SHA" "$HEAD_SHA" -- '*.yml' '*.yaml')
-
-          total_urls=0
-          failed=0
-          report_rows=""
-
-          for file in "${yaml_files[@]:-}"; do
-            # Ignore dotfiles and files inside dot-directories (e.g. .github/...)
-            if [[ "$file" =~ (^|/)\.[^/]+(/|$) ]]; then
-              continue
-            fi
-
-            file_url="${{ github.server_url }}/${{ github.repository }}/blob/$HEAD_SHA/$file"
-
-            # Extract URLs from the full file content at PR head for added/changed YAML files
-            mapfile -t urls < <(
-              git show "$HEAD_SHA:$file" \
-              | grep -Eo 'https?://[^[:space:]]+' \
-              | sed -E "s/[\"'<>),.;]+$//" \
-              | sort -u || true
-            )
-
-            for url in "${urls[@]:-}"; do
-              total_urls=$((total_urls + 1))
-              code="$(curl -s -L -o /dev/null -w "%{http_code}" "$url" || echo "000")"
-
-              if [[ "$code" != "200" ]]; then
-                failed=$((failed + 1))
-                report_rows="${report_rows}| [$file]($file_url) | $url | $code |\n"
-              fi
-            done
-          done
-
-          if ((total_urls == 0)); then
-            {
-              echo "## ✅ URL check skipped"
-              echo
-              echo "No URLs were found in added/changed YAML files."
-            } | tee -a "$GITHUB_STEP_SUMMARY" > "$URL_REPORT"
-            echo "result=pass" >> "$GITHUB_OUTPUT"
-            echo "report=$URL_REPORT" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-
-          if ((failed > 0)); then
-            {
-              echo "## ❌ URL check failed"
-              echo
-              echo "The following URLs from added/changed YAML files did not return \`200\` after redirects:"
-              echo
-              echo "| File | URL | Final HTTP code |"
-              echo "|---|---|---|"
-              printf "%b" "$report_rows"
-            } | tee -a "$GITHUB_STEP_SUMMARY" > "$URL_REPORT"
-            echo "result=fail" >> "$GITHUB_OUTPUT"
-            echo "report=$URL_REPORT" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-
-          {
-            echo "## ✅ URL check passed"
-            echo
-            echo "Checked **$total_urls** URL(s) from added/changed YAML files. All returned **200** after redirects."
-          } | tee -a "$GITHUB_STEP_SUMMARY" > "$URL_REPORT"
-          echo "result=pass" >> "$GITHUB_OUTPUT"
-          echo "report=$URL_REPORT" >> "$GITHUB_OUTPUT"
-
-      - name: Build PR markdown report
-        if: always()
-        id: build_report
-        shell: bash
-        run: |
-          set -euo pipefail
-
-          REPORT_FILE="$RUNNER_TEMP/pr_linkbot_report.md"
-          {
-            echo "<!-- linkbot-report -->"
-            echo "## LinkBot PR checks"
-            echo
-            echo "- Workflow run: [View run](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})"
-            echo
-            cat "${{ steps.file_check.outputs.report }}"
-            echo
-            cat "${{ steps.url_check.outputs.report }}"
-          } > "$REPORT_FILE"
-
-          echo "report=$REPORT_FILE" >> "$GITHUB_OUTPUT"
-
+  # Separate job so the write token is never present while PR content is handled.
+  comment:
+    needs: validate-pr
+    if: always() && needs.validate-pr.outputs.report != ''
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
+    steps:
       - name: Comment report on PR
-        if: always()
         uses: actions/github-script@v7
         env:
-          REPORT_PATH: ${{ steps.build_report.outputs.report }}
+          REPORT: ${{ needs.validate-pr.outputs.report }}
         with:
-          github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
-            const fs = require('fs');
             const marker = '<!-- linkbot-report -->';
-            const body = fs.readFileSync(process.env.REPORT_PATH, 'utf8');
+            const body = process.env.REPORT;
 
             const { owner, repo } = context.repo;
             const issue_number = context.payload.pull_request.number;
@@ -218,12 +114,10 @@ jobs:
       - name: Fail workflow when checks fail
         if: always()
         shell: bash
+        env:
+          RESULT: ${{ needs.validate-pr.outputs.result }}
         run: |
-          set -euo pipefail
-
-          file_result="${{ steps.file_check.outputs.result }}"
-          url_result="${{ steps.url_check.outputs.result }}"
-
-          if [[ "$file_result" == "fail" || "$url_result" == "fail" ]]; then
+          if [[ "$RESULT" != "pass" ]]; then
+            echo "LinkBot checks did not pass (result: ${RESULT:-none}). See the PR comment or job summary."
             exit 1
           fi
