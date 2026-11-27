@@ -1,0 +1,8 @@
+name: kidDo
+year: 2026
+description:
+  - kidDo is a handheld computer designed for children. It is sized to fit their hands and their pockets, takes cartridges and is made to aid lerarning through creation. 
+  - RP2350B, 2.8" 320x240 display, audio playback & recording, microSD, and a cartridge slot for sharing creations and expanding the device (WiFi, radio, Jacdac, etc.).
+url: https://kid-do.org
+github: https://github.com/rc-kid/kiddo
+status: active
